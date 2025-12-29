@@ -3,7 +3,6 @@ from pydantic import BaseModel
 import subprocess
 import json
 
-# Swagger, Redoc y OpenAPI habilitados explícitamente
 app = FastAPI(
     title="Horario Solver API",
     docs_url="/docs",
@@ -11,12 +10,17 @@ app = FastAPI(
     openapi_url="/openapi.json"
 )
 
-# 🔹 Endpoint raíz (necesario para Railway health-check)
+# ---------- HEALTH CHECK ----------
 @app.get("/")
 async def root():
-    return {"status": "ok", "service": "solver_api"}
+    return {"status": "ok"}
+
+@app.get("/ping")
+async def ping():
+    return "pong"
 
 
+# ---------- INPUT MODEL ----------
 class SolverInput(BaseModel):
     unidades: list
     periodos_validos: list
@@ -27,10 +31,10 @@ class SolverInput(BaseModel):
     periodos_por_dia: int = 0
 
 
+# ---------- SOLVER ----------
 @app.post("/solve")
 async def solve(data: SolverInput):
     try:
-        # 🔹 Ejecutamos el solver con timeout para evitar bloqueos
         proc = subprocess.Popen(
             ["python3", "solver_horario.py"],
             stdin=subprocess.PIPE,
@@ -40,34 +44,18 @@ async def solve(data: SolverInput):
         )
 
         input_json = json.dumps(data.dict(), ensure_ascii=False)
+
+        # ⏳ timeout = 60 segundos (evita cuelgues)
         stdout, stderr = proc.communicate(input=input_json, timeout=60)
 
-        # 🔹 Si el solver envía errores a stderr, los devolvemos
-        if stderr and stderr.strip():
-            return {
-                "exito": False,
-                "mensaje": "Error en solver",
-                "detalle": stderr
-            }
+        if stderr:
+            return {"exito": False, "mensaje": stderr}
 
-        # 🔹 Intentamos parsear JSON de salida
-        try:
-            return json.loads(stdout)
-        except Exception:
-            return {
-                "exito": False,
-                "mensaje": "Salida del solver no es JSON válido",
-                "stdout": stdout
-            }
+        return json.loads(stdout)
 
     except subprocess.TimeoutExpired:
-        return {
-            "exito": False,
-            "mensaje": "Tiempo de ejecución agotado (timeout)"
-        }
+        proc.kill()
+        return {"exito": False, "mensaje": "Tiempo de ejecución excedido (timeout)"}
 
     except Exception as e:
-        return {
-            "exito": False,
-            "mensaje": str(e)
-        }
+        return {"exito": False, "mensaje": str(e)}
