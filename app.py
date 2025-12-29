@@ -10,7 +10,6 @@ app = FastAPI(
     openapi_url="/openapi.json"
 )
 
-# ---------- HEALTH CHECK ----------
 @app.get("/")
 async def root():
     return {"status": "ok"}
@@ -19,8 +18,6 @@ async def root():
 async def ping():
     return "pong"
 
-
-# ---------- INPUT MODEL ----------
 class SolverInput(BaseModel):
     unidades: list
     periodos_validos: list
@@ -30,8 +27,6 @@ class SolverInput(BaseModel):
     dias: list = []
     periodos_por_dia: int = 0
 
-
-# ---------- SOLVER ----------
 @app.post("/solve")
 async def solve(data: SolverInput):
     try:
@@ -45,10 +40,9 @@ async def solve(data: SolverInput):
 
         input_json = json.dumps(data.dict(), ensure_ascii=False)
 
-        # ⏳ timeout = 60 segundos (evita cuelgues)
         stdout, stderr = proc.communicate(input=input_json, timeout=60)
 
-        if stderr:
+        if stderr and stderr.strip():
             return {"exito": False, "mensaje": stderr}
 
         return json.loads(stdout)
