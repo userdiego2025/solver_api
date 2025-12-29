@@ -3,7 +3,13 @@ from pydantic import BaseModel
 import subprocess
 import json
 
-app = FastAPI()
+# Habilitamos Swagger y OpenAPI explícitamente
+app = FastAPI(
+    title="Horario Solver API",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json"
+)
 
 class SolverInput(BaseModel):
     unidades: list
